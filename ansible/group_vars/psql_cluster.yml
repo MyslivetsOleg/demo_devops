@@ -1,0 +1,17 @@
+packages:
+  postgresql_preinstall: postgresql-common
+  postgresql_server:
+  - postgresql
+  - python3-psycopg2
+
+db:
+  user: appadmin
+  password: appadmin #vault 
+  name: os_commands
+
+pg:
+  data_dir: /opt/pgdata/data
+  wal_dir: /opt/pgdata/wal
+  cluster_name: flask-app
+  user: postgres
+  group: postgres
