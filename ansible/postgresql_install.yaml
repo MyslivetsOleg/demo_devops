@@ -1,7 +1,9 @@
 ---
 - name: Install simple PostgeSQL instance
   hosts: psql_cluster
- 
+  vars:
+    allow_world_readable_tmpfiles: true
+
   tasks:
     - name: Install postgresql-common
       ansible.builtin.apt:
@@ -73,8 +75,7 @@
         recurse: yes
       tags:
       - initialization 
-      - test
-
+     
     - name: Set rights to PG wal dir
       ansible.builtin.file:
         dest: "{{pg.wal_dir}}"
@@ -84,80 +85,51 @@
         recurse: yes
       tags:
       - initialization 
+      
+    - name: Init cluster
+      command: "initdb -D {{ pg.data_dir }} -X {{pg.wal_dir}} -E {{pg.encoding}}"  
+      become: true      
+      become_user: "{{ pg.user }}"
+      tags: 
+      - initialization
+
+    - name: Find pg_ctl to start cluster
+      shell: "find / -iname pg_ctl -type f 2>/dev/null"
+      register: pg_ctl
+      ignore_errors: yes
+      tags:
+      - initialization
       - test
 
-    - name: Init cluster
-      command: "initdb -D {{ postgresql_data_dir }}"  
-      become: true
+
+    - name: Show result of pg_ctl
+      debug:
+        var: pg_ctl.stdout_lines[0]
+      tags: 
+      - initialization
+      - test
+
+
+    - name: Start our pg cluster
+      command: "{{pg_ctl.stdout_lines[0]}} start -D {{pg.data_dir}} "  
+      become: true      
       become_user: "{{ pg.user }}"
-      tags: initialization
+      tags: 
+      - initialization
 
-#   - name: "Install Python packages"
-#     ansible.builtin.apt:
-#       name: "{{ packages.python }}"
-#       state: latest #absent 
-#       update_cache: true
-#     tags: install
 
-#   - name: "find path to pg_hba.conf"
-#     shell: "find / -iname pg_hba.conf -type f 2>/dev/null"
-#     register: pg_hba
-#     ignore_errors: yes
-#     tags: init
+    - name: Create custom systemd service
+      ansible.builtin.template:
+        src: templates/postgresql.service.j2
+        dest: /lib/systemd/system/postgresql.service
+        mode: '0644'
+      tags: 
+      - initialization
+      - test
 
-#   - name: "Find out if PostgreSQL is initialized"
-#     ansible.builtin.stat:
-#       path: "{{ pg_hba.stdout_lines[0] }}"
-#     register: postgres_data
-#     tags: init
-
-#   handlers:
-#   - name: Restart PostgreSQL
-#     service:
-#       name: postgresql
-#       state: restarted
-
-#  # - name: "Initialize PostgreSQL"
-#    # shell:                             #"postgresql-setup initdb"
-#    # when: not postgres_data.stat.exists
-#     #tags: initialization  
-
-#   # - name: Find /var/log files equal or greater than 10 megabytes ending with .old or .log.gz
-#   #   ansible.builtin.find:
-#   #     paths: /usr/lib/postgresql/
-#   #     patterns: 'initdb'
-#   #     file_type: file
-#   #   register: initdb
-#   #   tags: initialization 
-
-#   - name: "find initdb"
-#     shell: "find / -iname initdb -type f 2>/dev/null"
-#     register: initdb
-#     ignore_errors: yes
-#     tags: initialization 
-
-#   - name: Show result of initdb
-#     debug:
-#       var: initdb.stdout_lines[0]
-#     tags: initialization  
-
-#   - name: Create a symbolic link
-#     ansible.builtin.file:
-#       src: "{{ initdb.stdout_lines[0] }}"
-#       dest: /usr/local/bin/initdb
-#       state: link
-#     tags: initialization 
-
-#   - name: Ensure PostgreSQL data directory exists.
-#     file:
-#       path: "{{ postgresql_data_dir }}"
-#       state: directory
-#       owner: "{{ postgresql_user }}"
-#       mode: 0700
-#     tags: initialization
-
-#   - name: Ensure PostgreSQL database is initialized.
-#     command: "initdb -D {{ postgresql_data_dir }}"  
-#     become: true
-#     become_user: "{{ postgresql_user }}"
-#     tags: initialization
+  handlers:
+  - name: restart postgres
+    ansible.builtin.service:
+      name: postgresql
+      state: reloaded
+    become: yes

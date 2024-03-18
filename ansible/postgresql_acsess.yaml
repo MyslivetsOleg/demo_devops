@@ -1,18 +1,65 @@
-- name: Install Postgess db
-  hosts: postgresql_hosts
-  vars_files:
-    - var/default.yaml  
+- name: Configure access to PostgreSQL Cluster
+  hosts: psql_cluster 
 
   tasks:
-  - name: Create a new database with name "os_commands"
+  - name: Config postgres to accept outbound connections
+    ansible.builtin.lineinfile:
+      path: "{{pg.data_dir}}/postgresql.conf"
+      regexp: '^(#l|l)isten_addresses'
+      line: listen_addresses='*'
+    notify:
+    - restart postgres
+    tags: 
+    - initialization
+    - test
+
+  - name: Config postgres to accept outbound connections
+    ansible.builtin.lineinfile:
+      path: "{{pg.data_dir}}/postgresql.conf"
+      regexp: '^(#p|p)assword_encryption'
+      line: password_encryption = {{pg.auth_method}}
+    notify:
+    - restart postgres
+    tags: 
+    - initialization
+    - test
+
+  - name: Create a new database with name "{{db.name}}"
     community.postgresql.postgresql_db:
       name: "{{ db.name }}"
       #encoding: UTF-8
       state: present
+    tags:
+    - access
+    - test
 
   - name: Create rails user, set MD5-hashed password, grant privs
     community.postgresql.postgresql_user:
       db: "{{ db.name }}"
       name: "{{ db.user }}"
-      password: "{{ db.password | password_hash('md5') }}"
+      password: "{{ db.password }}"
       role_attr_flags: CREATEDB,NOSUPERUSER
+    environment:
+      PGOPTIONS: "-c password_encryption=scram-sha-256"
+    tags:
+    - access
+    - test
+
+  - name: Grant user replication from network/host {{access.network}}/{{access.mask}}
+    community.postgresql.postgresql_pg_hba:
+      dest: "{{pg.data_dir}}/pg_hba.conf"
+      contype: host
+      users: "{{db.user}}"
+      source: "{{access.network}}/{{access.mask}}"
+      databases: "{{ db.name }}"
+      method: "{{pg.auth_method}}"
+    tags:
+    - access
+    - test
+
+  handlers:
+  - name: restart postgres
+    ansible.builtin.service:
+      name: postgresql
+      state: reloaded
+    become: yes

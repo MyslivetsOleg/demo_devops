@@ -5,8 +5,8 @@ packages:
   - python3-psycopg2
 
 db:
-  user: appadmin
-  password: appadmin #vault 
+  user: dbadmin
+  password: dbp@ss 
   name: os_commands
 
 pg:
@@ -15,3 +15,10 @@ pg:
   cluster_name: flask-app
   user: postgres
   group: postgres
+  auth_method: scram-sha-256
+  encoding: Unicode
+
+access:
+  network: 192.168.3.0
+  mask: 24
+  
