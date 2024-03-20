@@ -12,6 +12,7 @@ db:
 pg:
   data_dir: /opt/pgdata/data
   wal_dir: /opt/pgdata/wal
+  scripts_dir_name: init
   cluster_name: flask-app
   user: postgres
   group: postgres

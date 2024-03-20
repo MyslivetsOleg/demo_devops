@@ -1,5 +1,5 @@
 - name: Configure access to PostgreSQL Cluster
-  hosts: psql_cluster 
+  hosts: psql_cluster
 
   tasks:
   - name: Config postgres to accept outbound connections
@@ -9,7 +9,7 @@
       line: listen_addresses='*'
     notify:
     - restart postgres
-    tags: 
+    tags:
     - initialization
     - test
 
@@ -45,6 +45,17 @@
     - access
     - test
 
+  - name: GRANT ALL PRIVILEGES ON SCHEMA public, math TO librarian
+    community.postgresql.postgresql_privs:
+      db: "{{ db.name }}"
+      privs: ALL
+      type: table
+      objs: "{{ db.name }}"
+      role: "{{ db.user }}"
+    tags:
+    - access
+    - test
+
   - name: Grant user replication from network/host {{access.network}}/{{access.mask}}
     community.postgresql.postgresql_pg_hba:
       dest: "{{pg.data_dir}}/pg_hba.conf"
@@ -57,9 +68,51 @@
     - access
     - test
 
+  - name: Create initial script directory "{{pg.data_dir}}/{{pg.scripts_dir_name}}"
+    ansible.builtin.file:
+      path: "{{pg.data_dir}}/{{pg.scripts_dir_name}}"
+      state: directory
+      owner: "{{pg.user}}"
+      group: "{{pg.group}}"
+    tags:
+    - access
+    - test      
+
+  - name: Copy initial script to server dir
+    ansible.builtin.copy:
+      src: "{{ item }}"
+      dest: "{{pg.data_dir}}/{{pg.scripts_dir_name}}"
+      owner: "{{pg.user}}"
+      group: "{{pg.group}}"
+      mode: '0644'
+    with_fileglob:
+      - "initial_scripts/*"  
+    tags:
+    - access
+    - test    
+
+  - name: Get all scripts names for run
+    ansible.builtin.find:
+      path: "{{pg.data_dir}}/{{pg.scripts_dir_name}}"
+    register: db_scripts
+    ignore_errors: true
+    tags:
+    - access
+    - test
+
+  - name: Run init script
+    community.postgresql.postgresql_script:
+      db: "{{ db.name }}"
+      path: "{{ item.path }}"
+      encoding: UTF-8
+    loop: "{{db_scripts.files}}"
+    tags:
+    - access
+    - test
+
   handlers:
-  - name: restart postgres
+  - name: Restart postgres
     ansible.builtin.service:
       name: postgresql
       state: reloaded
-    become: yes
+    become: true
