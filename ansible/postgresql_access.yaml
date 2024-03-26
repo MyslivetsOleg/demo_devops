@@ -19,7 +19,7 @@
       regexp: '^(#p|p)assword_encryption'
       line: password_encryption = {{pg.auth_method}}
     notify:
-    - restart postgres
+    - Restart postgres
     tags: 
     - initialization
     - test
@@ -33,7 +33,7 @@
     - access
     - test
 
-  - name: Create rails user, set MD5-hashed password, grant privs
+  - name: Create {{db.user}} user, set {{pg.auth_method}} password, grant privs
     community.postgresql.postgresql_user:
       db: "{{ db.name }}"
       name: "{{ db.user }}"
@@ -44,18 +44,7 @@
     tags:
     - access
     - test
-
-  - name: GRANT ALL PRIVILEGES ON SCHEMA public, math TO librarian
-    community.postgresql.postgresql_privs:
-      db: "{{ db.name }}"
-      privs: ALL
-      type: table
-      objs: "{{ db.name }}"
-      role: "{{ db.user }}"
-    tags:
-    - access
-    - test
-
+  
   - name: Grant user replication from network/host {{access.network}}/{{access.mask}}
     community.postgresql.postgresql_pg_hba:
       dest: "{{pg.data_dir}}/pg_hba.conf"
@@ -109,6 +98,18 @@
     tags:
     - access
     - test
+
+  - name: GRANT ALL PRIVILEGES ON SCHEMA {{db.name}}  TO {{ db.user }}
+    community.postgresql.postgresql_privs:
+      db: "{{ db.name }}"
+      privs: ALL
+      type: table
+      objs: "{{ db.name }}"
+      role: "{{ db.user }}"
+    tags:
+    - access
+    - test
+
 
   handlers:
   - name: Restart postgres

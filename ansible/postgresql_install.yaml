@@ -4,6 +4,7 @@
   vars:
     allow_world_readable_tmpfiles: true
 
+  # add install acl
   tasks:
     - name: Install postgresql-common
       ansible.builtin.apt:
@@ -85,7 +86,8 @@
         recurse: yes
       tags:
       - initialization 
-      
+
+    # check for alrady presented cluster  
     - name: Init cluster
       command: "initdb -D {{ pg.data_dir }} -X {{pg.wal_dir}} -E {{pg.encoding}}"  
       become: true      
@@ -123,12 +125,15 @@
         src: templates/postgresql.service.j2
         dest: /lib/systemd/system/postgresql.service
         mode: '0644'
+      notify:
+      - Restart postgres
       tags: 
       - initialization
       - test
 
+  # is realyy restart triggered?
   handlers:
-  - name: restart postgres
+  - name: Restart postgres
     ansible.builtin.service:
       name: postgresql
       state: reloaded

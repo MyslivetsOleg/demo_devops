@@ -1,5 +1,7 @@
 packages:
-  postgresql_preinstall: postgresql-common
+  postgresql_preinstall: 
+  - postgresql-common
+  - acl
   postgresql_server:
   - postgresql
   - python3-psycopg2
